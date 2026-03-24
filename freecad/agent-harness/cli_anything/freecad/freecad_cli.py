@@ -197,6 +197,34 @@ def sketch_add_circle(center, radius):
     output({"id": obj_id, "type": "circle"}, f"Added circle (id: {obj_id})")
 
 
+@sketch.command(name="add-rectangle")
+@click.option("--p1", default="0,0", help="Top-left corner (x,y)")
+@click.option("--p2", default="10,10", help="Bottom-right corner (x,y)")
+@handle_error
+def sketch_add_rectangle(p1, p2):
+    """Add a rectangle to the current sketch."""
+    session = get_session()
+    x1, y1 = map(float, p1.split(","))
+    x2, y2 = map(float, p2.split(","))
+    obj_id = session.add_object("rectangle", {"p1": [x1, y1], "p2": [x2, y2]})
+    session.save()
+    output({"id": obj_id, "type": "rectangle"}, f"Added rectangle (id: {obj_id})")
+
+
+@sketch.command(name="add-line")
+@click.option("--p1", default="0,0", help="Start point (x,y)")
+@click.option("--p2", default="10,0", help="End point (x,y)")
+@handle_error
+def sketch_add_line(p1, p2):
+    """Add a line segment to the current sketch."""
+    session = get_session()
+    x1, y1 = map(float, p1.split(","))
+    x2, y2 = map(float, p2.split(","))
+    obj_id = session.add_object("line", {"p1": [x1, y1], "p2": [x2, y2]})
+    session.save()
+    output({"id": obj_id, "type": "line"}, f"Added line (id: {obj_id})")
+
+
 # --- Part Commands ---
 
 @cli.group()
@@ -250,25 +278,52 @@ def generate_freecad_script(data: dict, output_path: str, format: str) -> str:
         "import PartDesign",
         "",
         "doc = FreeCAD.newDocument('GeneratedPart')",
+        "body = doc.addObject('PartDesign::Body', 'Body')",
+        "sketch = body.newObject('Sketcher::SketchObject', 'Sketch')",
+        "sketch.Support = (doc.XY_Plane, [''])",
+        "sketch.MapMode = 'FlatFace'",
         ""
     ]
     
-    # Very basic translation logic (for demonstration)
     for obj in data.get("objects", []):
         if obj["type"] == "circle":
             c = obj["params"]["center"]
             r = obj["params"]["radius"]
-            lines.append(f"circle = Part.makeCircle({r}, FreeCAD.Vector({c[0]}, {c[1]}, 0))")
-            lines.append(f"Part.show(circle)")
+            lines.append(f"sketch.addGeometry(Part.Circle(FreeCAD.Vector({c[0]}, {c[1]}, 0), FreeCAD.Vector(0, 0, 1), {r}), False)")
+        elif obj["type"] == "rectangle":
+            p1 = obj["params"]["p1"]
+            p2 = obj["params"]["p2"]
+            lines.append(f"sketch.addGeometry(Part.LineSegment(FreeCAD.Vector({p1[0]}, {p1[1]}, 0), FreeCAD.Vector({p2[0]}, {p1[1]}, 0)), False)")
+            lines.append(f"sketch.addGeometry(Part.LineSegment(FreeCAD.Vector({p2[0]}, {p1[1]}, 0), FreeCAD.Vector({p2[0]}, {p2[1]}, 0)), False)")
+            lines.append(f"sketch.addGeometry(Part.LineSegment(FreeCAD.Vector({p2[0]}, {p2[1]}, 0), FreeCAD.Vector({p1[0]}, {p2[1]}, 0)), False)")
+            lines.append(f"sketch.addGeometry(Part.LineSegment(FreeCAD.Vector({p1[0]}, {p2[1]}, 0), FreeCAD.Vector({p1[0]}, {p1[1]}, 0)), False)")
+        elif obj["type"] == "line":
+            p1 = obj["params"]["p1"]
+            p2 = obj["params"]["p2"]
+            lines.append(f"sketch.addGeometry(Part.LineSegment(FreeCAD.Vector({p1[0]}, {p1[1]}, 0), FreeCAD.Vector({p2[0]}, {p2[1]}, 0)), False)")
         elif obj["type"] == "pad":
-            lines.append(f"# Pad logic would go here")
+            length = obj["params"]["length"]
+            lines.append("doc.recompute()")
+            lines.append(f"pad = body.addObject('PartDesign::Pad', 'Pad')")
+            lines.append(f"pad.Profile = sketch")
+            lines.append(f"pad.Length = {length}")
+            lines.append("doc.recompute()")
             
     # Export logic
+    lines.append("doc.recompute()")
     if format == "step":
-        lines.append(f"import ImportGui")
         lines.append(f"Part.export(doc.Objects, '{output_path.replace(os.sep, '/')}')")
+    elif format == "stl":
+        lines.append(f"import Mesh")
+        lines.append(f"Mesh.export(doc.Objects, '{output_path.replace(os.sep, '/')}')")
     elif format == "png":
-        lines.append(f"# Rendering PNG would require GUI or Offscreen renderer")
+        lines.append(f"try:")
+        lines.append(f"    import FreeCADGui")
+        lines.append(f"    FreeCADGui.showMainWindow()")
+        lines.append(f"    view = FreeCADGui.activeDocument().activeView()")
+        lines.append(f"    view.saveImage('{output_path.replace(os.sep, '/')}', 1024, 768, 'White')")
+        lines.append(f"except:")
+        lines.append(f"    print('PNG export requires GUI mode')")
         
     return "\n".join(lines)
 

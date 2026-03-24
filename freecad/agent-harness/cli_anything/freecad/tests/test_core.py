@@ -47,6 +47,29 @@ def test_sketch_add_circle(runner, temp_project):
         assert data["objects"][0]["type"] == "circle"
         assert data["objects"][0]["params"]["radius"] == 10.0
 
+def test_sketch_add_rectangle(runner, temp_project):
+    runner.invoke(cli, ["project", "new", "-o", temp_project])
+    result = runner.invoke(cli, ["--project", temp_project, "sketch", "add-rectangle", "--p1", "0,0", "--p2", "20,20"])
+    assert result.exit_code == 0
+    assert "Added rectangle" in result.output
+    
+    with open(temp_project, "r") as f:
+        data = json.load(f)
+        assert any(obj["type"] == "rectangle" for obj in data["objects"])
+
+def test_sketch_add_line(runner, temp_project):
+    runner.invoke(cli, ["project", "new", "-o", temp_project])
+    result = runner.invoke(cli, ["--project", temp_project, "sketch", "add-line", "--p1", "0,0", "--p2", "10,10"])
+    assert result.exit_code == 0
+    assert "Added line" in result.output
+
+def test_part_pad(runner, temp_project):
+    runner.invoke(cli, ["project", "new", "-o", temp_project])
+    runner.invoke(cli, ["--project", temp_project, "sketch", "add-circle", "--radius", "10"])
+    result = runner.invoke(cli, ["--project", temp_project, "part", "pad", "--length", "5"])
+    assert result.exit_code == 0
+    assert "Added pad" in result.output
+    
 @patch("cli_anything.freecad.utils.freecad_backend.execute_freecad_python")
 def test_export_render(mock_execute, runner, temp_project):
     mock_execute.return_value = {"success": True, "stdout": "OK", "stderr": ""}

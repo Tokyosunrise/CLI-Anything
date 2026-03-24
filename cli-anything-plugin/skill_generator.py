@@ -293,10 +293,18 @@ cli-anything-{software_name} --json project new -o myproject.json"""
     # Export example if export commands exist
     for group in command_groups:
         if "export" in group.name.lower():
+            ext = "pdf"
+            if "freecad" in software_name.lower():
+                ext = "step"
+            elif software_name.lower() in ["gimp", "inkscape", "krita"]:
+                ext = "png"
+            elif "blender" in software_name.lower():
+                ext = "png"
+                
             examples.append(Example(
                 title="Export Project",
                 description="Export the project to a final output format.",
-                code=f"""cli-anything-{software_name} --project myproject.json export render output.pdf --overwrite"""
+                code=f"cli-anything-{software_name} --project myproject.json export render output.{ext} --overwrite"
             ))
             break
 

@@ -36,16 +36,23 @@ def find_freecad() -> str:
 def get_version() -> str:
     """Get the installed FreeCAD version string."""
     freecad = find_freecad()
-    # FreeCADCmd --version might not be supported in some versions,
-    # we can run a small script to get it from FreeCAD module.
-    script = "import FreeCAD; print(FreeCAD.version())"
-    result = subprocess.run(
-        [freecad, "--console"],
-        input=script,
-        capture_output=True, text=True, timeout=10,
-    )
-    if result.returncode == 0:
-        return result.stdout.strip()
+    # Run a small script to get it from FreeCAD module.
+    script_content = "import FreeCAD; print(FreeCAD.version())"
+    with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
+        f.write(script_content)
+        script_path = f.name
+    
+    try:
+        result = subprocess.run(
+            [freecad, script_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    finally:
+        if os.path.exists(script_path):
+            os.unlink(script_path)
+            
     return "Unknown Version"
 
 
